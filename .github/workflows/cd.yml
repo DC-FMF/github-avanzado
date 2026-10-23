@@ -1,10 +1,6 @@
 name: CD
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
-    branches: [main]
-
   push:
     branches: [main]
 
