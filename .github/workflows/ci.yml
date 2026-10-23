@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [develop]
+
+  push:
+    branches: [develop]
+
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  update-readme:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+
+      - name: Registrar la rama en el README
+        env:
+          SOURCE_BRANCH: ${{ github.head_ref || github.ref_name }}
+        run: |
+          BRANCH=$(git log -1 --pretty=%B | grep 'Merge pull request' | sed -E 's#.*from [^/]+/##')
+          BRANCH=${BRANCH:-$SOURCE_BRANCH}
+          LINE="- Añadida feature: $BRANCH"
+
+          if grep -Fxq -- "$LINE" README.md; then
+            echo "La rama ya está registrada en el README."
+          else
+            printf '%s\n' "$LINE" >> README.md
+          fi
+
+      - name: Commit y push del README
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add README.md
+
+          if git diff --cached --quiet; then
+            echo "Sin cambios que commitear"
+          else
+            git commit -m "docs: registrar rama"
+            git push
+          fi
+
+  validate-dev:
+    needs: update-readme
+    runs-on: self-hosted
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validar entorno de desarrollo
+        shell: powershell
+        env:
+          TOKEN: ${{ secrets.DEV_TOKEN }}
+        run: |
+          if ([string]::IsNullOrEmpty($env:TOKEN)) {
+            Write-Host "ERROR: El secret DEV_TOKEN no está disponible."
+            exit 1
+          }
+
+          if ([string]::IsNullOrEmpty($env:LOCAL_DEV_TOKEN)) {
+            Write-Host "ERROR: LOCAL_DEV_TOKEN no está disponible en el runner."
+            exit 1
+          }
+
+          if ([string]::Equals(
+              $env:TOKEN,
+              $env:LOCAL_DEV_TOKEN,
+              [StringComparison]::Ordinal
+          )) {
+            Write-Host "CI: validación de desarrollo correcta."
+          } else {
+            Write-Host "CI: validación fallida: los tokens no coinciden."
+            exit 1
+          }
