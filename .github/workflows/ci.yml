@@ -28,7 +28,13 @@ jobs:
         run: |
           BRANCH=$(git log -1 --pretty=%B | grep 'Merge pull request' | sed -E 's#.*from [^/]+/##')
           BRANCH=${BRANCH:-$SOURCE_BRANCH}
-          echo "- Añadida feature: $BRANCH" >> README.md
+          LINE="- Añadida feature: $BRANCH"
+
+          if grep -Fxq -- "$LINE" README.md; then
+            echo "La rama ya está registrada en el README."
+          else
+            printf '%s\n' "$LINE" >> README.md
+          fi
 
       - name: Commit y push del README
         run: |
